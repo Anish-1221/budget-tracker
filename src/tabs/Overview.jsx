@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Card, MonthPicker, Money, TxnForm } from '../components/ui.jsx'
 import { BucketDonut, IncomeVsSpend, NetWorthChart } from '../components/charts.jsx'
 import { BUCKETS, BUCKET_BY_ID } from '../data/categories.js'
-import { monthKey, today, monthSummary, balances, dueRecurring, recurringDate, uid, lastNMonths, monthLabel, shiftMonth, toISO, fmt, netWorthSeries } from '../lib/calc.js'
+import { monthKey, today, monthSummary, balances, dueRecurring, recurringDate, uid, lastNMonths, monthLabel, shiftMonth, fmt, netWorthSeries, acct } from '../lib/calc.js'
 
 export default function Overview({ data, update, setTab }) {
   const [month, setMonth] = useState(monthKey(today()))
@@ -11,15 +11,13 @@ export default function Overview({ data, update, setTab }) {
   const bal = useMemo(() => balances(data), [data])
   const isCurrent = month === monthKey(today())
   const due = isCurrent ? dueRecurring(data, month) : []
-  // card balance at the end of last month = what was carried into this month
-  const carried = useMemo(() => { const [y, m] = month.split('-').map(Number); return balances(data, toISO(new Date(y, m - 1, 0))).credit }, [data, month])
   const trend = useMemo(() => lastNMonths(6, month).map(k => { const x = monthSummary(data, k); return { label: monthLabel(k), income: x.income, spent: x.spent, saved: x.toSavings + x.toInvest } }), [data, month])
 
   function addRecurring(r) {
     update(d => {
       const t = { id: uid(), recurringId: r.id, name: r.name, amount: r.amount, date: recurringDate(r, month), note: '', updatedAt: Date.now() }
-      if (r.type === 'transfer') { t.type = 'transfer'; t.from = r.account || 'checking'; t.to = r.to }
-      else { t.type = r.type === 'income' ? 'income' : 'expense'; if (t.type === 'expense') { t.bucket = r.bucket; t.account = r.account } else t.to = 'checking' }
+      if (r.type === 'transfer') { t.type = 'transfer'; t.from = acct(r.account); t.to = acct(r.to) }
+      else { t.type = r.type === 'income' ? 'income' : 'expense'; if (t.type === 'expense') { t.bucket = r.bucket; t.account = acct(r.account) } else t.to = 'checking' }
       d.txns[t.id] = t
     })
   }
@@ -34,8 +32,8 @@ export default function Overview({ data, update, setTab }) {
         <MonthPicker value={month} onChange={setMonth} />
         <div className="balances">
           <span>Checking <Money v={bal.checking} cents={false} /></span>
-          <span>Card owed <Money v={bal.credit} cents={false} className="warn" /></span>
-          <span>Net worth <Money v={bal.checking + bal.savings + bal.investments - bal.credit} cents={false} /></span>
+          <span>Savings <Money v={bal.savings} cents={false} /></span>
+          <span>Net worth <Money v={bal.checking + bal.savings + bal.investments} cents={false} /></span>
         </div>
       </div>
 
@@ -62,8 +60,8 @@ export default function Overview({ data, update, setTab }) {
         ) : <p className="empty">Add this month's income and your first expense to see where the money goes.</p>}
         <dl className="stats">
           <div><dt>Spent</dt><dd><Money v={s.spent} cents={false} /><small>{prev.spent ? `${s.spent >= prev.spent ? '+' : ''}${Math.round(100 * (s.spent - prev.spent) / prev.spent)}% vs last month` : `${s.count} expenses`}</small></dd></div>
-          <div><dt>On the card</dt><dd><Money v={s.onCard} cents={false} /><small>{fmt(s.spent - s.onCard)} from checking</small></dd></div>
-          <div><dt>Card payments</dt><dd><Money v={s.cardPayments} cents={false} /><small>{carried > 0 ? `${fmt(carried)} carried in from last month` : 'nothing carried in'}</small></dd></div>
+          <div><dt>Per day</dt><dd><Money v={s.perDay} cents={false} /><small>{s.count} expenses so far</small></dd></div>
+          <div><dt>Biggest bucket</dt><dd>{s.top ? <><Money v={s.top[1]} cents={false} /><small>{BUCKET_BY_ID[s.top[0]]?.label}</small></> : <><Money v={0} cents={false} /><small>nothing yet</small></>}</dd></div>
           <div><dt>Set aside</dt><dd><Money v={s.toSavings + s.toInvest} cents={false} /><small>{fmt(s.toSavings)} saved, {fmt(s.toInvest)} invested</small></dd></div>
           <div><dt>Discretionary</dt><dd><Money v={s.byKind.flex} cents={false} /><small>{fmt(s.byKind.fixed)} fixed, {fmt(s.byKind.recurring)} periodic</small></dd></div>
           <div><dt>Out of checking</dt><dd><Money v={s.checkingOut} cents={false} /><small>{fmt(s.checkingIn)} came in</small></dd></div>
@@ -73,7 +71,7 @@ export default function Overview({ data, update, setTab }) {
       {due.length > 0 && (
         <Card title="Due this month" className="span-all due" aside={<button className="ghost" onClick={() => due.forEach(addRecurring)}>Add all</button>}>
           <ul className="due-list">
-            {due.map(r => <li key={r.id}><span>{r.name}</span><span className="muted">{r.type === 'transfer' ? 'transfer' : BUCKET_BY_ID[r.bucket]?.label} · day {r.day}</span><Money v={r.amount} /><button className="ghost" onClick={() => addRecurring(r)}>Add</button></li>)}
+            {due.map(r => <li key={r.id}><span>{r.name}</span><span className="muted">{r.type === 'transfer' ? 'transfer' : r.type === 'income' ? 'income' : BUCKET_BY_ID[r.bucket]?.label} · day {r.day}</span><Money v={r.amount} /><button className="ghost" onClick={() => addRecurring(r)}>Add</button></li>)}
           </ul>
         </Card>
       )}
@@ -104,7 +102,7 @@ export default function Overview({ data, update, setTab }) {
 
       <Card title="Net worth" className="span-all">
         <NetWorthChart rows={nw} />
-        <p className="muted small-note">Checking + savings + invested, minus what is owed on the card, at the end of each month.</p>
+        <p className="muted small-note">Checking + savings + invested at the end of each month.</p>
       </Card>
     </div>
   )

@@ -77,7 +77,6 @@ export function NetWorthChart({ rows, height = 240 }) {
         <Area isAnimationActive={false} type="monotone" dataKey="netWorth" name="Net worth" stroke="#4FD1C5" strokeWidth={2} fill="url(#nw)" />
         <Line isAnimationActive={false} type="monotone" dataKey="savings" name="Savings" stroke="#7ED9A1" strokeWidth={1.5} dot={false} />
         <Line isAnimationActive={false} type="monotone" dataKey="investments" name="Investments" stroke="#B39DFF" strokeWidth={1.5} dot={false} />
-        <Line isAnimationActive={false} type="monotone" dataKey="credit" name="Card owed" stroke="#F4B860" strokeWidth={1.5} dot={false} />
       </ComposedChart>
     </ResponsiveContainer>
   )

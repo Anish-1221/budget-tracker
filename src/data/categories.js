@@ -22,7 +22,6 @@ export const ACCOUNTS = [
   { id: 'checking', label: 'Checking', color: '#4FD1C5', liability: false },
   { id: 'savings', label: 'Savings', color: '#7ED9A1', liability: false },
   { id: 'investments', label: 'Investments', color: '#B39DFF', liability: false },
-  { id: 'credit', label: 'Credit card', color: '#F4B860', liability: true },
 ]
 export const ACCOUNT_BY_ID = Object.fromEntries(ACCOUNTS.map(a => [a.id, a]))
 

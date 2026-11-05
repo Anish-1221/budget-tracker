@@ -51,10 +51,10 @@ export default function Settings({ data, update, settings, sync, connect, discon
       </Card>
 
       <Card title="Opening balances" className="span-1">
-        <p className="muted small-note">What each account held before your first entry. Current balance = opening + everything logged.</p>
+        <p className="muted small-note">What each account held before your first entry. Current balance = opening + everything logged. Card purchases come off checking as soon as you log them, so there is no card balance to track.</p>
         {ACCOUNTS.map(a => (
           <label key={a.id} className="block row between">
-            <span><i className="swatch" style={{ background: a.color }} />{a.label}{a.liability ? ' (owed)' : ''}</span>
+            <span><i className="swatch" style={{ background: a.color }} />{a.label}</span>
             <span className="row"><input type="number" inputMode="decimal" step="0.01" defaultValue={data.opening[a.id] || ''} placeholder="0" onBlur={e => setOpening(a.id, e.target.value)} style={{ width: 120 }} /><small className="muted">now {fmt(bal[a.id])}</small></span>
           </label>
         ))}
@@ -74,7 +74,7 @@ export default function Settings({ data, update, settings, sync, connect, discon
         <p className="muted small-note">Rent, insurance, donation, subscriptions, a monthly savings deposit. Each month the Overview lists the ones not logged yet and you add them with one tap, so a changed amount can be edited before it lands.</p>
         {rules.length > 0 && (
           <ul className="due-list">
-            {rules.map(r => <li key={r.id}><span>{r.name}</span><span className="muted">{r.type === 'transfer' ? `→ ${r.to}` : r.type === 'income' ? 'income' : BUCKET_BY_ID[r.bucket]?.label} · {r.account} · day {r.day}</span><Money v={r.amount} /><ConfirmButton onConfirm={() => update(d => { d.recurring[r.id].deleted = true; d.recurring[r.id].updatedAt = Date.now() })} children="Remove" /></li>)}
+            {rules.map(r => <li key={r.id}><span>{r.name}{r.to === 'credit' && <span className="tag">unused, remove</span>}</span><span className="muted">{r.type === 'transfer' ? `→ ${r.to}` : r.type === 'income' ? 'income' : BUCKET_BY_ID[r.bucket]?.label} · {r.account === 'credit' ? 'checking' : r.account} · day {r.day}</span><Money v={r.amount} /><ConfirmButton onConfirm={() => update(d => { d.recurring[r.id].deleted = true; d.recurring[r.id].updatedAt = Date.now() })} children="Remove" /></li>)}
           </ul>
         )}
         <form className="row wrap" onSubmit={addRule}>

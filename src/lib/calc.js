@@ -43,32 +43,30 @@ export const live = data => Object.values(data.txns || {}).filter(t => !t.delete
 export const inMonth = (txns, key) => txns.filter(t => monthKey(t.date) === key)
 export const sum = (arr, f = x => x.amount) => arr.reduce((s, x) => s + (Number(f(x)) || 0), 0)
 
-// Balances: assets positive; credit stored as amount owed (positive).
+// Card purchases count against checking the moment they are logged, so there is no card account.
+// Entries from before this change that still say 'credit' map to checking; old card-payment transfers are ignored.
+export const acct = a => (a === 'credit' || !a ? 'checking' : a)
+export const isCardPayment = t => t.type === 'transfer' && (t.to === 'credit' || t.from === 'credit')
 export function balances(data, upTo = null) {
-  const b = { checking: 0, savings: 0, investments: 0, credit: 0 }
+  const b = { checking: 0, savings: 0, investments: 0 }
   const ob = data.opening || {}
   for (const a of ACCOUNTS) b[a.id] = Number(ob[a.id]) || 0
   for (const t of live(data)) {
     if (upTo && t.date > upTo) continue
     const amt = Number(t.amount) || 0
-    if (t.type === 'income') b[t.to || 'checking'] += amt
-    else if (t.type === 'expense') { if (t.account === 'credit') b.credit += amt; else b[t.account || 'checking'] -= amt }
-    else if (t.type === 'transfer') {
-      if (t.from === 'credit') b.credit += amt; else b[t.from] -= amt
-      if (t.to === 'credit') b.credit -= amt; else b[t.to] += amt
-    }
+    if (t.type === 'income') b[acct(t.to)] += amt
+    else if (t.type === 'expense') b[acct(t.account)] -= amt
+    else if (t.type === 'transfer' && !isCardPayment(t)) { b[acct(t.from)] -= amt; b[acct(t.to)] += amt }
   }
   return b
 }
-export const netWorth = b => b.checking + b.savings + b.investments - b.credit
+export const netWorth = b => b.checking + b.savings + b.investments
 
 export function monthSummary(data, key) {
   const txns = inMonth(live(data), key)
   const expenses = txns.filter(t => t.type === 'expense')
   const income = sum(txns.filter(t => t.type === 'income'))
   const spent = sum(expenses)
-  const onCard = sum(expenses.filter(t => t.account === 'credit'))
-  const cardPayments = sum(txns.filter(t => t.type === 'transfer' && t.to === 'credit'))
   const toSavings = sum(txns.filter(t => t.type === 'transfer' && t.to === 'savings' && t.from !== 'investments'))
   const fromSavings = sum(txns.filter(t => t.type === 'transfer' && t.from === 'savings'))
   const toInvest = sum(txns.filter(t => t.type === 'transfer' && t.to === 'investments'))
@@ -79,9 +77,12 @@ export function monthSummary(data, key) {
   // Budget view: what remains of this month's income after everything you spent (any card) and set aside
   const left = income - spent - toSavings - toInvest + fromSavings
   // Cash view: what actually left checking this month
-  const checkingOut = sum(expenses.filter(t => t.account !== 'credit')) + cardPayments + sum(txns.filter(t => t.type === 'transfer' && t.from === 'checking' && t.to !== 'credit'))
-  const checkingIn = income + sum(txns.filter(t => t.type === 'transfer' && t.to === 'checking'))
-  return { key, txns, expenses, income, spent, onCard, cardPayments, toSavings, fromSavings, toInvest, byBucket, byKind, left, checkingOut, checkingIn, count: expenses.length }
+  const checkingOut = sum(expenses.filter(t => acct(t.account) === 'checking')) + sum(txns.filter(t => t.type === 'transfer' && !isCardPayment(t) && acct(t.from) === 'checking'))
+  const checkingIn = income + sum(txns.filter(t => t.type === 'transfer' && !isCardPayment(t) && acct(t.to) === 'checking'))
+  const top = Object.entries(byBucket).sort((a, b) => b[1] - a[1])[0] || null
+  const [yy, mm] = key.split('-').map(Number)
+  const daysElapsed = key === monthKey(today()) ? Number(today().slice(8, 10)) : new Date(yy, mm, 0).getDate()
+  return { key, txns, expenses, income, spent, toSavings, fromSavings, toInvest, byBucket, byKind, left, checkingOut, checkingIn, count: expenses.length, top, perDay: spent / Math.max(1, daysElapsed) }
 }
 
 export function periodSeries(data, keys, keyFn) {
@@ -97,7 +98,7 @@ export function netWorthSeries(data, months) {
   return months.map(k => {
     const [y, m] = k.split('-').map(Number); const end = toISO(new Date(y, m, 0))
     const b = balances(data, end)
-    return { key: k, netWorth: netWorth(b), savings: b.savings, investments: b.investments, checking: b.checking, credit: -b.credit }
+    return { key: k, netWorth: netWorth(b), savings: b.savings, investments: b.investments, checking: b.checking }
   })
 }
 
@@ -105,7 +106,7 @@ export function netWorthSeries(data, months) {
 // Returns the ones due for `monthKey` that have no txn yet.
 export function dueRecurring(data, key) {
   const applied = new Set(live(data).filter(t => t.recurringId && monthKey(t.date) === key).map(t => t.recurringId))
-  return Object.values(data.recurring || {}).filter(r => r.active !== false && !r.deleted && !applied.has(r.id))
+  return Object.values(data.recurring || {}).filter(r => r.active !== false && !r.deleted && !applied.has(r.id) && r.to !== 'credit')
 }
 export function recurringDate(r, key) {
   const [y, m] = key.split('-').map(Number); const last = new Date(y, m, 0).getDate()

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BUCKETS, BUCKET_BY_ID, ACCOUNTS, ACCOUNT_BY_ID } from '../data/categories.js'
-import { categorize, uid, today, fmtC, monthLabel, shiftMonth } from '../lib/calc.js'
+import { categorize, uid, today, fmtC, monthLabel, shiftMonth, acct, isCardPayment } from '../lib/calc.js'
 
 export function Card({ title, aside, children, className = '' }) {
   return (
@@ -44,7 +44,7 @@ export function TxnForm({ data, update, initialType = 'expense', edit = null, on
   const [amount, setAmount] = useState(edit?.amount ?? defaults.amount ?? '')
   const [date, setDate] = useState(edit?.date || today())
   const [bucket, setBucket] = useState(edit?.bucket || defaults.bucket || '')
-  const [account, setAccount] = useState(edit?.account || defaults.account || 'credit')
+  const [account, setAccount] = useState(acct(edit?.account || defaults.account))
   const [from, setFrom] = useState(edit?.from || defaults.from || 'checking')
   const [to, setTo] = useState(edit?.to || defaults.to || 'savings')
   const [note, setNote] = useState(edit?.note || '')
@@ -61,7 +61,7 @@ export function TxnForm({ data, update, initialType = 'expense', edit = null, on
     if (!amt || amt <= 0) return
     const t = { id: edit?.id || uid(), type, amount: amt, name: name.trim() || (type === 'transfer' ? `${ACCOUNT_BY_ID[from].label} → ${ACCOUNT_BY_ID[to].label}` : 'Income'), date, note: note.trim(), updatedAt: Date.now() }
     if (type === 'expense') { t.bucket = bucket || 'other'; t.account = account }
-    if (type === 'income') { t.to = to === 'credit' ? 'checking' : to }
+    if (type === 'income') { t.to = acct(to) }
     if (type === 'transfer') { if (from === to) return; t.from = from; t.to = to }
     if (edit?.recurringId) t.recurringId = edit.recurringId
     if (edit?.goalId || defaults.goalId) t.goalId = edit?.goalId || defaults.goalId
@@ -105,7 +105,7 @@ export function TxnForm({ data, update, initialType = 'expense', edit = null, on
           </label>
           <label>Paid with
             <select value={account} onChange={e => setAccount(e.target.value)}>
-              <option value="credit">Credit card</option><option value="checking">Checking</option><option value="savings">Savings</option>
+              <option value="checking">Checking</option><option value="savings">Savings</option>
             </select>
           </label>
         </div>
@@ -147,9 +147,9 @@ export function TxnList({ txns, data, update, empty = 'Nothing here yet.' }) {
           <div className="what">
             <div className="name">{t.name}{t.recurringId && <span className="tag">recurring</span>}</div>
             <div className="meta">
-              {t.type === 'expense' && <><BucketChip id={t.bucket} /><span>{ACCOUNT_BY_ID[t.account]?.label || 'Checking'}</span></>}
-              {t.type === 'income' && <span>Income → {ACCOUNT_BY_ID[t.to]?.label}</span>}
-              {t.type === 'transfer' && <span>{ACCOUNT_BY_ID[t.from]?.label} → {ACCOUNT_BY_ID[t.to]?.label}{t.to === 'credit' ? ' (card payment)' : ''}</span>}
+              {t.type === 'expense' && <><BucketChip id={t.bucket} /><span>{ACCOUNT_BY_ID[acct(t.account)]?.label}</span></>}
+              {t.type === 'income' && <span>Income → {ACCOUNT_BY_ID[acct(t.to)]?.label}</span>}
+              {t.type === 'transfer' && (isCardPayment(t) ? <span>Old card payment, no longer counted</span> : <span>{ACCOUNT_BY_ID[acct(t.from)]?.label} → {ACCOUNT_BY_ID[acct(t.to)]?.label}</span>)}
               {t.note && <span className="note">{t.note}</span>}
             </div>
           </div>

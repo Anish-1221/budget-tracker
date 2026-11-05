@@ -10,14 +10,14 @@ Everything is a transaction with one of three types:
 
 | Type | What it means | Fields |
 |---|---|---|
-| Expense | Money spent. Has a bucket and a "paid with" account (credit card, checking or savings). | name, amount, bucket, account, date, note |
+| Expense | Money spent. Has a bucket and a "paid with" account (checking or savings). | name, amount, bucket, account, date, note |
 | Income | Money coming in (TA stipend, refund, gift). Deposited to checking by default. | source, amount, to, date |
 | Transfer | Money moving between your accounts. Never counts as spending. | from, to, amount, date |
 
-Four accounts: **Checking**, **Savings**, **Investments**, **Credit card** (stored as the amount owed). Current balance = opening balance (Settings) + everything logged.
+Three accounts: **Checking**, **Savings**, **Investments**. Current balance = opening balance (Settings) + everything logged.
 
 ### Credit card
-Log purchases when they happen with their real bucket and "Paid with: Credit card". When you pay the bill, log a transfer Checking → Credit card (or use the recurring "Card payment" rule). The Overview shows both: what went on the card this month, how much you paid, and how much was carried in from last month (the card balance at the end of the previous month). Card payments never count as spending, so nothing is double counted.
+There is no card account. Every purchase, whether swiped on the card or paid from checking, is logged as an expense from Checking the day it happens, since the card gets paid off from checking anyway. Do not log the card bill payment; that money has already been counted. Entries from before this simplification that said "Credit card" are treated as Checking, and old card-payment transfers are shown but ignored in every total.
 
 ### "Left" this month (budget view)
 `income − all expenses (any account) − moved to savings − moved to investments + taken back out of savings`
